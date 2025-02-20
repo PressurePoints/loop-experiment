@@ -6,14 +6,16 @@ from ctr_estimator import CTREstimator
 import sys
 import os
 
-train_round = 10
+train_round = 20
+id1 = 2259
+id2 = 2261
 
 # 1458 3386
 # 2259 2261
 def main():
-    data_folder = "../../make-ipinyou-data"
-    train_path = data_folder + "/1458" + "/train.yzx.txt"
-    test_path = data_folder + "/1458" + "/test.yzx.txt"
+    data_folder = "../../make-ipinyou-data/"
+    train_path = data_folder + str(id1) + "/train.yzx.txt"
+    test_path = data_folder + str(id1) + "/test.yzx.txt"
 
     train_data = Dataset(train_path)
     train_data.shuffle()
@@ -35,7 +37,7 @@ def main():
     print("Train done.")
 
 
-    log_file = "1458"+ "_" + str(ctr_estimator.lr_alpha) + "_" + str(ctr_estimator.budget_prop) + ".txt"
+    log_file = str(id1) + "_" + str(ctr_estimator.lr_alpha) + "_" + str(ctr_estimator.budget_prop) + ".txt"
     os.makedirs("../output", exist_ok=True)
     log_output_path = "../output/" + log_file
     print("Begin log output ...")
@@ -43,7 +45,7 @@ def main():
     print("Log output done.")
 
     print("Begin weight output ...")
-    weight_path = "1458" + "_" + "best_weight" \
+    weight_path = str(id1) + "_" + "best_weight" \
                 + "_" + str(ctr_estimator.lr_alpha) + "_" + str(ctr_estimator.budget_prop) \
                 + ".weight"
     best_test_log = ctr_estimator.get_best_test_log()
