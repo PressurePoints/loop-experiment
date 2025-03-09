@@ -7,6 +7,7 @@ from sklearn.metrics import mean_squared_error
 import math
 
 from bid_strategy import BidStrategy
+from dataset import DatasetV2
 
 def sigmoid(x):
 	value = 0.5
@@ -187,45 +188,48 @@ class CTREstimator:
 			print("budget = " + str(self.budget))
 
 
+# member variables:
+# train_datas: train_datas[i] = [y, z, x1, x2, ...], combined from train_data1 and train_data2
+# test_data1, test_data2: class DatasetV2
+# winning_data1, winning_data2: class DatasetV2, after test become the winning dataset
 class CTREstimatorFor2:
-	def __init__(self, train_data1, test_data1, train_data2, test_data2, id1, id2):
+	# each is class DatasetV2
+	def __init__(self, train_data1, test_data1, train_data2, test_data2, id1, id2, camp_v1, camp_v2, weight=None):
 		random.seed(10)
 
 		self.id1 = id1
 		self.id2 = id2
-		self.train_data1 = train_data1
+
 		self.test_data1 = test_data1
-		self.train_data2 = train_data2
 		self.test_data2 = test_data2
-		self.camp_v1 = self.train_data1.get_statistics()['ecpc']
-		self.camp_v2 = self.train_data2.get_statistics()['ecpc']
+		self.camp_v1 = camp_v1
+		self.camp_v2 = camp_v2
 
 		self.have_budget = have_budget
 		self.budget_prop = budget_prop
-		self.budget = int(self.test_data1.get_statistics()['cost_sum'] + self.test_data2.get_statistics()['cost_sum'] / self.budget_prop)
+		self.budget = int(self.test_data1.statistics['cost_sum'] + self.test_data2.statistics['cost_sum'] / self.budget_prop)
 
 		self.lr_alpha = lr_alpha
 		self.lr_lambda = lr_lambda
-		self.weight = {}
+		if weight is not None:
+			self.weight = weight
+		else:
+			self.weight = {}
 		self.best_weight = {}
 		self.test_log = []
 
 		self.bid_strategy1 = BidStrategy(self.camp_v1)
 		self.bid_strategy2 = BidStrategy(self.camp_v2)
 
-		self.train_dataset = []
-		train_data1.init_index()
-		train_data2.init_index()
-		while not train_data1.reached_tail():
-			data = train_data1.get_next_data()
-			self.train_dataset.append(data)
-		while not train_data2.reached_tail():
-			data = train_data2.get_next_data()
-			self.train_dataset.append(data)
-		random.shuffle(self.train_dataset)
+		self.train_datas = []
+		for data in train_data1.datas:
+			self.train_datas.append(data)
+		for data in train_data2.datas:
+			self.train_datas.append(data)
+		random.shuffle(self.train_datas)
 
 	def train(self):
-		for data in self.train_dataset:
+		for data in self.train_datas:
 			y = data[0]
 			feature = data[2:len(data)]
 
@@ -235,8 +239,8 @@ class CTREstimatorFor2:
 
 	def test(self):
 		parameters = {'weight':self.weight}
-		performance1 = self.calc_performance(self.test_data1, parameters, 1)
-		performance2 = self.calc_performance(self.test_data2, parameters, 2)
+		performance1, self.winning_data1 = self.calc_performance(self.test_data1, parameters, 1)
+		performance2, self.winning_data2 = self.calc_performance(self.test_data2, parameters, 2)
 
 		# record performance
 		log = {'weight':copy.deepcopy(self.weight), 'performance1':copy.deepcopy(performance1), 'performance2':copy.deepcopy(performance2)}
@@ -252,11 +256,10 @@ class CTREstimatorFor2:
 		revenue_sum = 0
 		labels = []
 		p_labels = []
+		winning_datas = []
 
-		dataset.init_index()
-		while not dataset.reached_tail(): #TODO no budget set
+		for data in dataset.datas:
 			bid_sum += 1
-			data = dataset.get_next_data()
 			y = data[0]
 			market_price = data[1]
 			feature = data[2:len(data)]
@@ -271,6 +274,7 @@ class CTREstimatorFor2:
 				bid_price = self.bid_strategy2.bid(ctr)
 			
 			if bid_price > market_price:
+				winning_datas.append(data)
 				cost_sum += market_price
 				imp_sum += 1
 				clk_sum += y
@@ -291,7 +295,9 @@ class CTREstimatorFor2:
 						'imps':imp_sum, 'clks':clk_sum,
 						'auc': auc, 'rmse': rmse,
 						'roi': roi, 'cost': cost_sum}
-		return performance
+		id = self.id1 if index == 1 else self.id2
+		winning_data = DatasetV2(winning_datas, id)
+		return performance, winning_data
 
 
 	def get_last_test_log(self):
@@ -357,7 +363,7 @@ class CTREstimatorFor2:
 			print("budget = " + str(self.budget))
 	
 	def output_data_info(self):
-		print("train_data's size: " + str(len(self.train_dataset)))
-		print("test_data1's size: " + str(self.test_data1.get_size()))
-		print("test_data2's size: " + str(self.test_data2.get_size()))
+		print("train_data's size: " + str(len(self.train_datas)))
+		print("test_data1's size: " + str(self.test_data1.statistics['size']))
+		print("test_data2's size: " + str(self.test_data2.statistics['size']))
 
