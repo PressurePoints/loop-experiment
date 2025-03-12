@@ -10,7 +10,6 @@ train_round = 20
 id = [2259, 2261]
 n = 5
 data_folder = "make-ipinyou-data/"
-output_path = "loop-experiment/output/lr-tb/"
 
 def split_data(data_path):
     if not os.path.exists(data_path):
@@ -31,84 +30,90 @@ def split_data(data_path):
 # 1458 3386
 # 2259 2261
 def main():
-    data_paths = [data_folder + str(id[i]) + "/all.yzx.txt" for i in range(2)]
+    file_base_name = str(id[0])
+    if len(id) == 2:
+        file_base_name = str(id[0]) + "_" + str(id[1])
+
+    output_path = "loop-experiment/output/lr-tb/"
+    output_path += str(id[0])
+    if len(id) == 2:
+        output_path += "-" + str(id[1])
+    output_path += "/"
+
+    data_paths = [data_folder + str(id[i]) + "/all.yzx.txt" for i in range(len(id))]
     print("Begin spliting data ...")
-    datas_list1 = split_data(data_paths[0])
-    datas_list2 = split_data(data_paths[1])
+    datas_lists = [split_data(data_path) for data_path in data_paths]
     print("Data splited.")
 
-    camp_v1, camp_v2 = get_camp_v(datas_list1, datas_list2)
-    print("Camp V1: " + str(camp_v1))
-    print("Camp V2: " + str(camp_v2))
+    camp_vs = get_camp_vs(datas_lists)
+    for i in range(len(id)):
+        print("camp_v%d: %d" % (i, camp_vs[i]))
 
-    # V1(datas_list1, datas_list2, camp_v1, camp_v2)
-    # V2(datas_list1, datas_list2, camp_v1, camp_v2)
-    # V3(datas_list1, datas_list2, camp_v1, camp_v2)
+    V1(datas_lists, camp_vs, file_base_name, output_path)
+    V2(datas_lists, camp_vs, file_base_name, output_path)
+    V3(datas_lists, camp_vs, file_base_name, output_path)
 
-def get_camp_v(datas_list1, datas_list2):
-    all_train_data1 = [item for sublist in datas_list1[0 : n-1] for item in sublist] # n-1 parts for training
-    train_dataset1 = Dataset(all_train_data1, id[0])
-    camp_v1 = train_dataset1.statistics['ecpc']
+def get_camp_vs(datas_lists):
+    camp_vs = []
+    for datas_list in datas_lists:
+        all_train_data = [item for sublist in datas_list[0 : n-1] for item in sublist] # n-1 parts for training
+        train_dataset = Dataset(all_train_data, id[0])
+        camp_v = train_dataset.statistics['ecpc']
+        camp_vs.append(camp_v)
 
-    all_train_data2 = [item for sublist in datas_list2[0 : n-1] for item in sublist]
-    train_dataset2 = Dataset(all_train_data2, id[1])
-    camp_v2 = train_dataset2.statistics['ecpc']
-    return camp_v1, camp_v2
+    return camp_vs
 
-def V1(datas_list1, datas_list2, camp_v1, camp_v2):
+def V1(data_lists, camp_vs, file_base_name, output_path):
     #----------------- data -----------------
-    train_dataset1 = Dataset(datas_list1[0], id[0]) 
-    train_dataset1.shuffle()
-    train_dataset2 = Dataset(datas_list2[0], id[1])
-    train_dataset2.shuffle()
+    train_datasets = [Dataset(data_lists[i][0], id[i]) for i in range(len(id))] # first part
+    for train_dataset in train_datasets:
+        train_dataset.shuffle()
     weight = None
     #----------------- train -----------------
     print("Begin training ...")
     for i in range(1, n):
         print("Turn " + str(i) + " ...")
-        test_dataset1 = Dataset(datas_list1[i], id[0])
-        test_dataset2 = Dataset(datas_list2[i], id[1])
-        ctr_estimator = LrModel(train_dataset1, test_dataset1, train_dataset2, test_dataset2, id[0], id[1], camp_v1, camp_v2, weight = weight)
+        test_datasets = [Dataset(data_lists[j][i], id[j]) for j in range(len(id))] # ith part
+        ctr_estimator = LrModel(train_datasets, test_datasets, id, camp_vs, weight)
         ctr_estimator.output_data_info()
+
         for j in range(0, train_round):
             ctr_estimator.train()
             ctr_estimator.test()
             this_round_log = ctr_estimator.get_last_test_log()
-            print("Round " + str(j+1) + "\t" + str(this_round_log['performance1']))
-            print("Round " + str(j+1) + "\t" + str(this_round_log['performance2']))
+            for performance in this_round_log['performances']:
+                print("Round " + str(j+1) + "\t" + str(performance))
         
         weight = ctr_estimator.get_best_test_log()['weight']
-        train_dataset1 = ctr_estimator.winning_dataset1
-        train_dataset1.shuffle()
-        train_dataset2 = ctr_estimator.winning_dataset2
-        train_dataset2.shuffle()
+        train_datasets = ctr_estimator.winning_datasets
+        for train_dataset in train_datasets:
+            train_dataset.shuffle()
         #----------------- output -----------------
         print("Begin log output in this turn ...")
-        log_file = "[" + str(i) + "]" + str(id[0]) + "_" + str(id[1]) + "V1.txt"
+        log_file = "[" + str(i) + "]" + file_base_name + "V1.txt"
         os.makedirs(output_path, exist_ok=True)
         log_output_path = output_path + log_file
         ctr_estimator.output_log(log_output_path)
 
-def V2(datas_list1, datas_list2, camp_v1, camp_v2):
+def V2(data_lists, camp_vs, file_base_name, output_path):
     #----------------- data -----------------
     print("Begin loading data ...")
-    all_train_data1 = [item for sublist in datas_list1[0 : n-1] for item in sublist] # n-1 parts for training
-    train_dataset1 = Dataset(all_train_data1, id[0])
-    train_dataset1.shuffle()
-    test_dataset1 = Dataset(datas_list1[n-1], id[0])
+    train_datasets = []
+    test_datasets = []
+    for i in range(len(id)):
+        all_train_data = [item for sublist in data_lists[i][0 : n-1] for item in sublist] # n-1 parts for training
+        train_dataset = Dataset(all_train_data, id[i])
+        train_dataset.shuffle()
+        test_dataset = Dataset(data_lists[i][n-1], id[i]) # nth part
 
-    all_train_data2 = [item for sublist in datas_list2[0 : n-1] for item in sublist]
-    train_dataset2 = Dataset(all_train_data2, id[1])
-    train_dataset2.shuffle()
-    test_dataset2 = Dataset(datas_list2[n-1], id[1])
+        train_dataset.output_statistics()
+        test_dataset.output_statistics()
 
-    train_dataset1.output_statistics()
-    test_dataset1.output_statistics()
-    train_dataset2.output_statistics()
-    test_dataset2.output_statistics()
+        train_datasets.append(train_dataset)
+        test_datasets.append(test_dataset)
     print("Data loaded.")
     #----------------- train -----------------    
-    ctr_estimator = LrModel(train_dataset1, test_dataset1, train_dataset2, test_dataset2, id[0], id[1], camp_v1, camp_v2)
+    ctr_estimator = LrModel(train_datasets, test_datasets, id, camp_vs)
     ctr_estimator.output_info()
     ctr_estimator.output_data_info()
 
@@ -117,11 +122,11 @@ def V2(datas_list1, datas_list2, camp_v1, camp_v2):
         ctr_estimator.train()
         ctr_estimator.test()
         this_round_log = ctr_estimator.get_last_test_log()
-        print("Round " + str(i+1) + "\t" + str(this_round_log['performance1']))
-        print("Round " + str(i+1) + "\t" + str(this_round_log['performance2']))
+        for performance in this_round_log['performances']:
+            print("Round " + str(i+1) + "\t" + str(performance))
     print("Train done.")
     #----------------- output -----------------
-    log_file = str(id[0]) + "_" + str(id[1]) + "V2.txt"
+    log_file = file_base_name + "V2.txt"
     os.makedirs(output_path, exist_ok=True)
     log_output_path = output_path + log_file
     print("Begin log output ...")
@@ -136,24 +141,24 @@ def V2(datas_list1, datas_list2, camp_v1, camp_v2):
     # ctr_estimator.output_weight(best_test_log['weight'], "../output/" + weight_path)
     # print("Weight output done.")
 
-def V3(datas_list1, datas_list2, camp_v1, camp_v2):
+def V3(data_lists, camp_vs, file_base_name, output_path):
     #----------------- data -----------------
     print("Begin loading data ...")
-    train_dataset1 = Dataset(datas_list1[0], id[0])
-    train_dataset1.shuffle()
-    test_dataset1 = Dataset(datas_list1[n-1], id[0])
+    train_datasets = []
+    test_datasets = []
+    for i in range(len(id)):
+        train_dataset = Dataset(data_lists[i][0], id[i]) # first part
+        train_dataset.shuffle()
+        test_dataset = Dataset(data_lists[i][n-1], id[i]) # nth part
 
-    train_dataset2 = Dataset(datas_list2[0], id[1])
-    train_dataset2.shuffle()
-    test_dataset2 = Dataset(datas_list2[n-1], id[1])
+        train_dataset.output_statistics()
+        test_dataset.output_statistics()
 
-    train_dataset1.output_statistics()
-    test_dataset1.output_statistics()
-    train_dataset2.output_statistics()
-    test_dataset2.output_statistics()
+        train_datasets.append(train_dataset)
+        test_datasets.append(test_dataset)
     print("Data loaded.")
     #----------------- train -----------------    
-    ctr_estimator = LrModel(train_dataset1, test_dataset1, train_dataset2, test_dataset2, id[0], id[1], camp_v1, camp_v2)
+    ctr_estimator = LrModel(train_datasets, test_datasets, id, camp_vs)
     ctr_estimator.output_info()
     ctr_estimator.output_data_info()
 
@@ -162,11 +167,11 @@ def V3(datas_list1, datas_list2, camp_v1, camp_v2):
         ctr_estimator.train()
         ctr_estimator.test()
         this_round_log = ctr_estimator.get_last_test_log()
-        print("Round " + str(i+1) + "\t" + str(this_round_log['performance1']))
-        print("Round " + str(i+1) + "\t" + str(this_round_log['performance2']))
+        for performance in this_round_log['performances']:
+            print("Round " + str(i+1) + "\t" + str(performance))
     print("Train done.")
     #----------------- output -----------------
-    log_file = str(id[0]) + "_" + str(id[1]) + "V3.txt"
+    log_file = file_base_name + "V3.txt"
     os.makedirs(output_path, exist_ok=True)
     log_output_path = output_path + log_file
     print("Begin log output ...")
