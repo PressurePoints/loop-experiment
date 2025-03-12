@@ -1,7 +1,6 @@
-#!/d/anaconda3/envs/python3/python.exe
 
-
-class BidStrategy:
+# noticed that the true camp_v is 1000 * camp_v
+class TruthfulBid:
     def __init__(self, camp_v):
         self.camp_v = camp_v
 
