@@ -1,11 +1,10 @@
-# logistic regression + truthful bidding
+# logistic regression + optimal bidding
 
 from dataset import Dataset
-from ctr_estimator import LrModel
+from ctr_estimator import LrModelWithOptimalBidding
 
 import sys
 import os
-import random
 
 train_round = 20
 id = [2259, 2261]
@@ -35,7 +34,7 @@ def main():
     if len(id) == 2:
         file_base_name = str(id[0]) + "_" + str(id[1])
 
-    output_path = "loop-experiment/output/lr-tb/"
+    output_path = "loop-experiment/output/lr-ob/"
     output_path += str(id[0])
     if len(id) == 2:
         output_path += "-" + str(id[1])
@@ -50,49 +49,9 @@ def main():
     for i in range(len(id)):
         print("camp_v%d: %d" % (i, camp_vs[i]))
 
-    # output_path = output_path[:-1]
-    # output_path += "-cut-200/"
-    # random.seed(200)
-    # cut_datas(datas_lists)
-    # test_data_similarity(datas_lists)
     # V1(datas_lists, camp_vs, file_base_name, output_path)
-    # V2(datas_lists, camp_vs, file_base_name, output_path)
-    # V3(datas_lists, camp_vs, file_base_name, output_path)
-
-def cut_datas(datas_lists):
-    # for every part of data, cut the first advertiser's data to let it be the same size, cost_sum, clk_sum as the second advertiser's data
-    if len(datas_lists) != 2:
-        return
-    for i in range(0, n):
-        # cut datas_lists[0][i] to the same as datas_lists[1][i]
-        dataset1 = Dataset(datas_lists[1][i], id[1])
-        target_size = dataset1.statistics['size']
-        target_cost_sum = dataset1.statistics['cost_sum']
-        target_clk_sum = dataset1.statistics['clk_sum']
-        
-        data0 = datas_lists[0][i]
-        random.shuffle(data0)
-        
-        sampled_data = []
-        current_size = 0
-        current_cost_sum = 0
-        current_clk_sum = 0
-        for data in data0:
-            if current_size >= target_size and current_cost_sum >= target_cost_sum and current_clk_sum >= target_clk_sum:
-                break
-            sampled_data.append(data)
-            current_size += 1
-            current_cost_sum += data[1]
-            current_clk_sum += data[0]
-        datas_lists[0][i] = sampled_data
-
-def test_data_similarity(datas_lists):
-    for i in range(0, n):
-        print(str(i + 1) + "th part: ")
-        for j in range(len(datas_lists)):
-            print(str(j + 1) + "th advertiser's data info:")
-            temp = Dataset(datas_lists[j][i], id[j])
-            temp.output_statistics()
+    V2(datas_lists, camp_vs, file_base_name, output_path)
+    V3(datas_lists, camp_vs, file_base_name, output_path)
 
 def get_camp_vs(datas_lists):
     camp_vs = []
@@ -115,12 +74,14 @@ def V1(data_lists, camp_vs, file_base_name, output_path):
     for i in range(1, n):
         print("Turn " + str(i) + " ...")
         test_datasets = [Dataset(data_lists[j][i], id[j]) for j in range(len(id))] # ith part
-        ctr_estimator = LrModel(train_datasets, test_datasets, id, camp_vs, weight)
+        ctr_estimator = LrModelWithOptimalBidding(train_datasets, test_datasets, id, camp_vs, weight)
         ctr_estimator.output_data_info()
 
         for j in range(0, train_round):
             ctr_estimator.train()
             ctr_estimator.test()
+            if ctr_estimator.judge_stop():
+                break
             this_round_log = ctr_estimator.get_last_test_log()
             for performance in this_round_log['performances']:
                 print("Round " + str(j+1) + "\t" + str(performance))
@@ -154,7 +115,7 @@ def V2(data_lists, camp_vs, file_base_name, output_path):
         test_datasets.append(test_dataset)
     print("Data loaded.")
     #----------------- train -----------------    
-    ctr_estimator = LrModel(train_datasets, test_datasets, id, camp_vs)
+    ctr_estimator = LrModelWithOptimalBidding(train_datasets, test_datasets, id, camp_vs)
     ctr_estimator.output_info()
     ctr_estimator.output_data_info()
 
@@ -162,6 +123,8 @@ def V2(data_lists, camp_vs, file_base_name, output_path):
     for i in range(0, train_round):
         ctr_estimator.train()
         ctr_estimator.test()
+        if ctr_estimator.judge_stop():
+            break
         this_round_log = ctr_estimator.get_last_test_log()
         for performance in this_round_log['performances']:
             print("Round " + str(i+1) + "\t" + str(performance))
@@ -199,7 +162,7 @@ def V3(data_lists, camp_vs, file_base_name, output_path):
         test_datasets.append(test_dataset)
     print("Data loaded.")
     #----------------- train -----------------    
-    ctr_estimator = LrModel(train_datasets, test_datasets, id, camp_vs)
+    ctr_estimator = LrModelWithOptimalBidding(train_datasets, test_datasets, id, camp_vs)
     ctr_estimator.output_info()
     ctr_estimator.output_data_info()
 
@@ -207,6 +170,8 @@ def V3(data_lists, camp_vs, file_base_name, output_path):
     for i in range(0, train_round):
         ctr_estimator.train()
         ctr_estimator.test()
+        if ctr_estimator.judge_stop():
+            break
         this_round_log = ctr_estimator.get_last_test_log()
         for performance in this_round_log['performances']:
             print("Round " + str(i+1) + "\t" + str(performance))

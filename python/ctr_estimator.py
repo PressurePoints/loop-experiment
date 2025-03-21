@@ -4,8 +4,9 @@ import random
 from sklearn.metrics import roc_auc_score
 from sklearn.metrics import mean_squared_error
 import math
+import numpy as np
 
-from bid_strategy import TruthfulBid
+from bid_strategy import TruthfulBid, OptimalBid
 from dataset import Dataset
 
 def sigmoid(x):
@@ -36,12 +37,15 @@ have_budget = False
 lr_alpha = 1E-4
 lr_lambda = 1E-4
 
-# logistic regression model
+mu_range = np.arange(-0.98, 0.98, 0.04)
+
+# logistic regression model, using loss function with Cross Entropy + L2 regularization
 # member variables:
 # train_datas: train_datas[i] = [y, z, x1, x2, ...], combined from train_dataset1 and train_dataset2
 # test_datasets[i] = class dataset, can be 1 or 2, ids, camp_vs and bid_strategys are similar
 # winning_datasets[i] = class Dataset, after test become the winning dataset
-# test_log[i] = dictionary{weight, performances}
+# test_log[i] = dictionary{weight, performances}, performances = [performance]
+# performance = dictionary{bids, cpc, cpm, ctr, revenue, imps, clks, auc, rmse, roi, cost}
 class LrModel:
 	def __init__(self, train_datasets, test_datasets, ids, camp_vs, weight=None):
 		random.seed(10)
@@ -229,4 +233,75 @@ class LrModel:
 		for i in range(0, len(self.test_datasets)):
 			print("test_dataset " + str(i+1) + "'s size: " + str(self.test_datasets[i].statistics['size']))
 
+class LrModelWithOptimalBidding(LrModel):
+	def __init__(self, train_datasets, test_datasets, ids, camp_vs, weight=None):
+		LrModel.__init__(self, train_datasets, test_datasets, ids, camp_vs, weight)
+		self.bid_strategys = [OptimalBid(camp_v) for camp_v in self.camp_vs]
+		self.mu_range = mu_range
+	
+	def test(self, whether_search_mu = True):
+		parameters = {'weight':self.weight}
+		performances = []
+		self.winning_datasets = []
+		mus = []
 
+		if whether_search_mu:
+			# different advertiser use different bidding strategy, that is different mu
+			for idx in range(len(self.test_datasets)):
+				# print(str(idx+1) + "th advertiser")
+				optimal_revenue = -1E10
+				optimal_performance = None
+				optimal_winning_dataset = None
+				optimal_mu = 0.0
+
+				# search for mu
+				for mu in self.mu_range:
+					# print("mu = " + str(mu))
+					self.bid_strategys[idx].set_mu(mu)
+					performance, winning_dataset = self.calc_performance(self.test_datasets[idx], parameters, idx)
+					if performance['revenue'] > optimal_revenue:
+						optimal_revenue = performance['revenue']
+						optimal_performance = performance
+						optimal_winning_dataset = winning_dataset
+						optimal_mu = mu
+				
+				performances.append(optimal_performance)
+				self.winning_datasets.append(optimal_winning_dataset)
+				mus.append(optimal_mu)
+		else:
+			for idx in range(len(self.test_datasets)):
+				performance, winning_dataset = self.calc_performance(self.test_datasets[idx], parameters, idx)
+				performances.append(performance)
+				self.winning_datasets.append(winning_dataset)
+				mus.append(-100)
+
+		# record performance
+		log = {'weight':copy.deepcopy(self.weight), 'performances':copy.deepcopy(performances), 'mus':copy.deepcopy(mus)}
+		self.test_log.append(log)
+
+	def output_log(self, path):
+		fo = open(path, 'w')
+
+		fo.write("Max revenue's round: " + str(self.get_best_test_log_index() + 1) + '\n')
+		
+		headers = ['round', 'bids', 'cpc', 'cpm', 'ctr', 'revenue', 'imps', 'clks', 'auc', 'rmse', 'roi', 'cost']
+		header_line = '{:<5} {:<8} {:<20} {:<20} {:<23} {:<8} {:<8} {:<8} {:<20} {:<20} {:<20} {:<8}'.format(*headers)
+		fo.write(header_line + '\n')
+
+		for i in range(0, len(self.test_log)):
+			test_log = self.test_log[i]
+			for performance in test_log['performances']:
+				line = '{:<5} {:<8} {:<20} {:<20} {:<23} {:<8} {:<8} {:<8} {:<20} {:<20} {:<20} {:<8}'.format(
+					i+1,
+					performance['bids'], performance['cpc'], performance['cpm'], performance['ctr'], 
+					performance['revenue'], performance['imps'], performance['clks'], performance['auc'], 
+					performance['rmse'], performance['roi'], performance['cost']
+				)
+				fo.write(line + '\n')
+			line2 = "round " + str(i+1) + ", total revenue = " + str(sum(performance['revenue'] for performance in test_log['performances']))
+			line3 = "	optimal mu = "
+			for mu in test_log['mus']:
+				line3 += str(mu) + ', '
+			line3 = line3[:-2]
+			fo.write(line2 + line3 + '\n')
+		fo.close()

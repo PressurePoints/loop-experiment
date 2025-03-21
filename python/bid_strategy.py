@@ -1,4 +1,8 @@
 
+# class bid_strategy must have following methods to be referenced:
+# def __init__(self, camp_v):
+# def bid(self, ctr):
+
 # noticed that the true camp_v is 1000 * camp_v
 class TruthfulBid:
     def __init__(self, camp_v):
