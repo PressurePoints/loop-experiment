@@ -20,11 +20,18 @@ def merge_data(input_path1, input_path2, output_path):
     fo.close()
     print("Merging done.")
 
-id = 2261
+def count_lines(file_path):
+    with open(file_path, 'r') as f:
+        lines = f.readlines()
+    return len(lines)
+
+id = 3476
 if __name__ == '__main__':
-    data_folder = "../../make-ipinyou-data/"
+    data_folder = "make-ipinyou-data/"
     train_path = data_folder + str(id) + "/train.yzx.txt"
     test_path = data_folder + str(id) + "/test.yzx.txt"
     merge_path = data_folder + str(id) + "/all.yzx.txt"
 
     merge_data(train_path, test_path, merge_path)
+
+    print("total number of lines: " + str(count_lines(merge_path)))

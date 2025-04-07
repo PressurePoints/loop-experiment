@@ -7,6 +7,16 @@ import sys
 import os
 import random
 
+# ad_id     total_bids
+# 1458      3697694
+# 3386      3393223
+# 3427      3130560
+# 3476      2494208
+# 3358      2043032
+# 2821      1984525
+# 2259      1252753
+# 2261      1031479
+# 2997      468500
 train_round = 20
 id = [2259, 2261]
 n = 5
@@ -28,7 +38,6 @@ def split_data(data_path):
     datas_list = [datas[i * k + min(i, m):(i + 1) * k + min(i + 1, m)] for i in range(n)]
     return datas_list
 
-# 1458 3386
 # 2259 2261
 def main():
     file_base_name = str(id[0])
@@ -55,9 +64,9 @@ def main():
     # random.seed(200)
     # cut_datas(datas_lists)
     # test_data_similarity(datas_lists)
-    # V1(datas_lists, camp_vs, file_base_name, output_path)
-    # V2(datas_lists, camp_vs, file_base_name, output_path)
-    # V3(datas_lists, camp_vs, file_base_name, output_path)
+    V1(datas_lists, camp_vs, file_base_name, output_path)
+    V2(datas_lists, camp_vs, file_base_name, output_path)
+    V3(datas_lists, camp_vs, file_base_name, output_path)
 
 def cut_datas(datas_lists):
     # for every part of data, cut the first advertiser's data to let it be the same size, cost_sum, clk_sum as the second advertiser's data

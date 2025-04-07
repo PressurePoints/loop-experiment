@@ -136,11 +136,12 @@ class LrModel:
 		cpc = 0.0 if clk_sum == 0 else 1.0 * cost_sum / clk_sum * 1E-3
 		cpm = 0.0 if imp_sum == 0 else 1.0 * cost_sum / imp_sum
 		ctr = 0.0 if imp_sum == 0 else 1.0 * clk_sum / imp_sum
+		winrate = 0.0 if bid_sum == 0 else 1.0 * imp_sum / bid_sum
 		roi = 0.0 if cost_sum == 0 else 1.0 * (revenue_sum) / cost_sum
 		auc = roc_auc_score(labels, p_labels)
 		rmse = math.sqrt(mean_squared_error(labels, p_labels))
 		performance = {'bids':bid_sum, 'cpc':cpc, 'cpm':cpm, 
-						'ctr': ctr, 'revenue':revenue_sum, 
+						'ctr': ctr, 'winrate': winrate, 'revenue':revenue_sum, 
 						'imps':imp_sum, 'clks':clk_sum,
 						'auc': auc, 'rmse': rmse,
 						'roi': roi, 'cost': cost_sum}
@@ -197,18 +198,38 @@ class LrModel:
 	def output_log(self, path):
 		fo = open(path, 'w')
 
-		fo.write("Max revenue's round: " + str(self.get_best_test_log_index() + 1) + '\n')
-		
-		headers = ['round', 'bids', 'cpc', 'cpm', 'ctr', 'revenue', 'imps', 'clks', 'auc', 'rmse', 'roi', 'cost']
-		header_line = '{:<5} {:<8} {:<20} {:<20} {:<23} {:<8} {:<8} {:<8} {:<20} {:<20} {:<20} {:<8}'.format(*headers)
-		fo.write(header_line + '\n')
+		best_test_log_index = self.get_best_test_log_index()
+		fo.write("Max revenue's round: " + str(best_test_log_index + 1) + '\n')
+		fo.write("This round's info:\n")
 
+		# output best round's info		
+		headers = ['round', 'bids', 'cpc', 'cpm', 'ctr', 'winrate', 'revenue', 'imps', 'clks', 'auc', 'rmse', 'roi', 'cost']
+		header_line = '{:<5} {:<8} {:<20} {:<20} {:<23} {:<21} {:<8} {:<8} {:<8} {:<20} {:<20} {:<20} {:<8}'.format(*headers)
+		fo.write(header_line + '\n')
+		test_log = self.test_log[best_test_log_index]
+		for performance in test_log['performances']:
+			line = '{:<5} {:<8} {:<20} {:<20} {:<23} {:<21} {:<8} {:<8} {:<8} {:<20} {:<20} {:<20} {:<8}'.format(
+				best_test_log_index+1,
+				performance['bids'], performance['cpc'], performance['cpm'], performance['ctr'], performance['winrate'],
+				performance['revenue'], performance['imps'], performance['clks'], performance['auc'], 
+				performance['rmse'], performance['roi'], performance['cost']
+			)
+			fo.write(line + '\n')		
+		line2 = "round " + str(best_test_log_index+1) + ", total revenue = " + str(sum(performance['revenue'] for performance in test_log['performances']))
+		fo.write(line2 + '\n')
+		
+		fo.write('\n')
+		fo.write('\n')
+		fo.write("all rounds' info:\n")
+
+		# output all rounds' info
+		fo.write(header_line + '\n')
 		for i in range(0, len(self.test_log)):
 			test_log = self.test_log[i]
 			for performance in test_log['performances']:
-				line = '{:<5} {:<8} {:<20} {:<20} {:<23} {:<8} {:<8} {:<8} {:<20} {:<20} {:<20} {:<8}'.format(
+				line = '{:<5} {:<8} {:<20} {:<20} {:<23} {:<21} {:<8} {:<8} {:<8} {:<20} {:<20} {:<20} {:<8}'.format(
 					i+1,
-					performance['bids'], performance['cpc'], performance['cpm'], performance['ctr'], 
+					performance['bids'], performance['cpc'], performance['cpm'], performance['ctr'], performance['winrate'],
 					performance['revenue'], performance['imps'], performance['clks'], performance['auc'], 
 					performance['rmse'], performance['roi'], performance['cost']
 				)
