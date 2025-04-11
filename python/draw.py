@@ -5,8 +5,8 @@ import matplotlib.pyplot as plt
 plt.rcParams['font.sans-serif'] = ['SimHei']  # 使用黑体
 plt.rcParams['axes.unicode_minus'] = False  # 正常显示负号
 
-id = [2259, 2261]
-n = 5
+id = [3476, 3358]
+n = 8
 
 def extract_revenues_from_file(file_path):
     revenues = []
@@ -59,7 +59,16 @@ def DrawRevenueRatioChange(file_path_head, file_names, expected_file_name):
     print(expected_revenue1)
     print(expected_revenue2)
 
-    ratios_advertiser1 = [1.0 * r1 / (r1 + r2) for r1, r2 in zip(revenue1, revenue2)]
+    ratios_advertiser1 = []
+    for r1, r2 in zip(revenue1, revenue2):
+        if r1 < 0 and r2 < 0:
+            ratios_advertiser1.append(-1)
+        elif r1 < 0 and r2 > 0:
+            ratios_advertiser1.append(0)
+        elif r1 > 0 and r2 < 0:
+            ratios_advertiser1.append(1)
+        else:
+            ratios_advertiser1.append(r1 / (r1 + r2))
     ratios_advertiser2 = [1 - ratio for ratio in ratios_advertiser1]
     expected_ratio_advertiser1 = 1.0 * expected_revenue1 / (expected_revenue1 + expected_revenue2)
     print(ratios_advertiser1)

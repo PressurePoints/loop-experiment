@@ -18,10 +18,17 @@ import random
 # 2261      1031479
 # 2997      468500
 train_round = 20
-id = [2259, 2261]
-n = 5
+id = [3476, 3358]
+n = 8
 data_folder = "make-ipinyou-data/"
 
+default_order = False
+V1_index_order = [0, 2, 3, 6, 7, 4, 5, 1]
+# [0, 3, 6, 7, 4, 5, 2, 1]
+# [0, 6, 7, 3, 2, 4, 1, 5]
+# [0, 3, 2, 6, 7, 4, 5, 1]
+# [0, 6, 7, 4, 5, 1, 3, 2]
+# [0, 2, 3, 6, 7, 4, 5, 1]
 def split_data(data_path):
     if not os.path.exists(data_path):
         print("ERROR: file not exist. " + data_path)
@@ -54,6 +61,13 @@ def main():
     print("Begin spliting data ...")
     datas_lists = [split_data(data_path) for data_path in data_paths]
     print("Data splited.")
+
+    if not default_order:
+        for i in range(len(id)):
+            temp = datas_lists[i]
+            for j in range(0, n):
+                datas_lists[i][j] = temp[V1_index_order[j]]
+        print("Index order changed.")
 
     camp_vs = get_camp_vs(datas_lists)
     for i in range(len(id)):
@@ -115,7 +129,7 @@ def get_camp_vs(datas_lists):
 
 def V1(data_lists, camp_vs, file_base_name, output_path):
     #----------------- data -----------------
-    train_datasets = [Dataset(data_lists[i][0], id[i]) for i in range(len(id))] # first part
+    train_datasets = [Dataset(data_lists[i][0], id[i]) for i in range(len(id))] # first part, also 0th part
     for train_dataset in train_datasets:
         train_dataset.shuffle()
     weight = None
@@ -154,7 +168,7 @@ def V2(data_lists, camp_vs, file_base_name, output_path):
         all_train_data = [item for sublist in data_lists[i][0 : n-1] for item in sublist] # n-1 parts for training
         train_dataset = Dataset(all_train_data, id[i])
         train_dataset.shuffle()
-        test_dataset = Dataset(data_lists[i][n-1], id[i]) # nth part
+        test_dataset = Dataset(data_lists[i][n-1], id[i]) # n-1 th part, final part
 
         train_dataset.output_statistics()
         test_dataset.output_statistics()
