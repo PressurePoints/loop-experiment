@@ -6,6 +6,12 @@ round bids     cpc                  cpm                  ctr                    
 round 3, total revenue = 4423593
 
 
+Here are train dataset's quality scores:
+id    score1               score2               score3              
+2259  0.7550271126530615   0.6537313432835821   4.397885064930277   
+2261  0.7692830151324994   0.7339901477832512   2.9084684590779095  
+
+
 all rounds' info:
 round bids     cpc                  cpm                  ctr                     winrate               revenue  imps     clks     auc                  rmse                 roi                  cost    
 1     250550   271.00625806451615   58.20016626255629    0.00021475580187045376  0.576132508481341     588806   144350   31       0.5191891486761593   0.017530314886214846 0.07008599015806563  8401194 

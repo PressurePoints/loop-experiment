@@ -6,6 +6,7 @@ from ctr_estimator import LrModel
 import sys
 import os
 import random
+import numpy as np
 
 # ad_id     total_bids
 # 1458      3697694
@@ -22,8 +23,9 @@ id = [3476, 3358]
 n = 8
 data_folder = "make-ipinyou-data/"
 
+not_cut = True
 default_order = False
-V1_index_order = [0, 2, 3, 6, 7, 4, 5, 1]
+V1_index_order = [0, 6, 7, 3, 2, 4, 1, 5]
 # [0, 3, 6, 7, 4, 5, 2, 1]
 # [0, 6, 7, 3, 2, 4, 1, 5]
 # [0, 3, 2, 6, 7, 4, 5, 1]
@@ -62,6 +64,15 @@ def main():
     datas_lists = [split_data(data_path) for data_path in data_paths]
     print("Data splited.")
 
+    if not not_cut:
+        print("Begin cutting data ...")
+        output_path = output_path[:-1]
+        output_path += "-cut-200/"
+        random.seed(200)
+        cut_datas(datas_lists)
+        test_data_similarity(datas_lists)
+        print("Data cutted.")
+
     if not default_order:
         for i in range(len(id)):
             temp = datas_lists[i]
@@ -72,12 +83,7 @@ def main():
     camp_vs = get_camp_vs(datas_lists)
     for i in range(len(id)):
         print("camp_v%d: %d" % (i, camp_vs[i]))
-
-    # output_path = output_path[:-1]
-    # output_path += "-cut-200/"
-    # random.seed(200)
-    # cut_datas(datas_lists)
-    # test_data_similarity(datas_lists)
+    
     V1(datas_lists, camp_vs, file_base_name, output_path)
     V2(datas_lists, camp_vs, file_base_name, output_path)
     V3(datas_lists, camp_vs, file_base_name, output_path)
@@ -124,7 +130,6 @@ def get_camp_vs(datas_lists):
         train_dataset = Dataset(all_train_data, id[0])
         camp_v = train_dataset.statistics['ecpc']
         camp_vs.append(camp_v)
-
     return camp_vs
 
 def V1(data_lists, camp_vs, file_base_name, output_path):
@@ -148,6 +153,13 @@ def V1(data_lists, camp_vs, file_base_name, output_path):
             for performance in this_round_log['performances']:
                 print("Round " + str(j+1) + "\t" + str(performance))
         
+        scores1 = [score_quality_with_positive_ratio(train_datasets[j]) for j in range(len(id))]
+        complete_train_datasets = [Dataset(data_lists[j][i-1], id[j]) for j in range(len(id))]
+        scores2 = [score_quality_with_positive_feature(train_datasets[j], complete_train_datasets[j]) for j in range(len(id))]
+        initial_performances = ctr_estimator.init_performances
+        best_performances = ctr_estimator.get_best_test_log()['performances']
+        scores3 = [score_quality_with_shapley_value(initial_performances[j], best_performances[j], train_datasets[j].statistics['size']) for j in range(len(id))]
+
         weight = ctr_estimator.get_best_test_log()['weight']
         train_datasets = ctr_estimator.winning_datasets
         for train_dataset in train_datasets:
@@ -157,7 +169,7 @@ def V1(data_lists, camp_vs, file_base_name, output_path):
         log_file = "[" + str(i) + "]" + file_base_name + "V1.txt"
         os.makedirs(output_path, exist_ok=True)
         log_output_path = output_path + log_file
-        ctr_estimator.output_log(log_output_path)
+        ctr_estimator.output_log(log_output_path, scores1, scores2, scores3)
 
 def V2(data_lists, camp_vs, file_base_name, output_path):
     #----------------- data -----------------
@@ -250,6 +262,22 @@ def V3(data_lists, camp_vs, file_base_name, output_path):
     # ctr_estimator.output_weight(best_test_log['weight'], "../output/" + weight_path)
     # print("Weight output done.")
 
+def score_quality_with_positive_ratio(test_dataset):
+    ctr = test_dataset.statistics['ctr']
+    log_ctr = np.log(ctr + 1e-6)  
+    min_log = np.log(1e-6)  # 理论最小值
+    max_log = np.log(0.002)   # 选择 0.002 为上限
+    return (log_ctr - min_log) / (max_log - min_log)
+
+def score_quality_with_positive_feature(test_dataset, all_dataset):
+    test_dataset_positive_feature_num = test_dataset.statistics['positive_feature_num']
+    all_dataset_positive_feature_num = all_dataset.statistics['positive_feature_num']
+    return test_dataset_positive_feature_num / all_dataset_positive_feature_num
+
+def score_quality_with_shapley_value(initial_performance, final_performance, train_dataset_size):
+    initial_revenue = initial_performance['revenue']
+    final_revenue = final_performance['revenue']
+    return (final_revenue - initial_revenue) / train_dataset_size
 
 if __name__ == '__main__':
     main()

@@ -46,7 +46,20 @@ mu_range = np.arange(-0.98, 0.98, 0.04)
 # winning_datasets[i] = class Dataset, after test become the winning dataset
 # test_log[i] = dictionary{weight, performances}, performances = [performance]
 # performance = dictionary{bids, cpc, cpm, ctr, revenue, imps, clks, auc, rmse, roi, cost}
+# init_performances = [performance]
+# init_winning_datasets = [winning_dataset]
+# have_init_weight = boolean  , means whether initial weight is not None
+# if initial weight is None, then pctr is always 1/2
 class LrModel:
+	def initial_test(self):
+		self.init_performances = []
+		self.init_winning_datasets = []	
+		parameters = {'weight':self.weight}	
+		for idx in range(len(self.test_datasets)):
+			performance, winning_dataset = self.calc_performance(self.test_datasets[idx], parameters, idx)
+			self.init_performances.append(performance)
+			self.init_winning_datasets.append(winning_dataset)
+
 	def __init__(self, train_datasets, test_datasets, ids, camp_vs, weight=None):
 		random.seed(10)
 
@@ -62,8 +75,10 @@ class LrModel:
 		self.lr_lambda = lr_lambda
 		if weight is not None:
 			self.weight = weight
+			self.have_init_weight = True
 		else:
 			self.weight = {}
+			self.have_init_weight = False
 		self.best_weight = {}
 		self.test_log = []
 
@@ -74,6 +89,8 @@ class LrModel:
 			for data in train_dataset.datas:
 				self.train_datas.append(data)
 		random.shuffle(self.train_datas)
+
+		self.initial_test()
 
 	# pctr = sigmoid(w * x)
 	# loss function is Cross Entropy + L2 regularization (1/2 * lambda * w^2)
@@ -195,7 +212,7 @@ class LrModel:
 			fo.write(str(idx) + '\t' + str(weight[idx]) + '\n')
 		fo.close()
 
-	def output_log(self, path):
+	def output_log(self, path, scores1 = None, scores2 = None, scores3 = None):
 		fo = open(path, 'w')
 
 		best_test_log_index = self.get_best_test_log_index()
@@ -220,6 +237,15 @@ class LrModel:
 		
 		fo.write('\n')
 		fo.write('\n')
+		if scores1 is not None:
+			fo.write("Here are train dataset's quality scores:\n")
+			line = '{:<5} {:<20} {:<20} {:<20}'.format('id', 'score1', 'score2', 'score3')
+			fo.write(line + '\n')
+			for i in range(0, len(self.ids)):
+				line = '{:<5} {:<20} {:<20} {:<20}'.format(self.ids[i], scores1[i], scores2[i], scores3[i])
+				fo.write(line + '\n')
+			fo.write('\n')
+			fo.write('\n')		
 		fo.write("all rounds' info:\n")
 
 		# output all rounds' info
